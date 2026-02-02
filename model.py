@@ -43,6 +43,24 @@ class Conv2d(nn.Module):
             x = self.relu(x)
         return x
 
+# Helper function for adaptive pooling compatible with MPS
+def adaptive_avg_pool2d_mps_compatible(input_tensor, output_size):
+    """
+    Adaptive average pooling compatible with MPS backend.
+    Falls back to CPU if MPS has issues with divisibility.
+    """
+    if input_tensor.device.type == 'mps':
+        # Check if sizes are divisible
+        h, w = input_tensor.shape[2], input_tensor.shape[3]
+        out_h, out_w = output_size
+        if h % out_h != 0 or w % out_w != 0:
+            # Move to CPU for pooling, then back to original device
+            device = input_tensor.device
+            input_cpu = input_tensor.cpu()
+            pooled = F.adaptive_avg_pool2d(input_cpu, output_size)
+            return pooled.to(device)
+    return F.adaptive_avg_pool2d(input_tensor, output_size)
+
 # the main implementation of the SASNet
 class SASNet(nn.Module):
     def __init__(self, pretrained=False, args=None):
@@ -145,22 +163,22 @@ class SASNet(nn.Module):
         # begining of decoding
         x = self.de_pred5(x5)
         x5_out = x
-        x = F.upsample_bilinear(x, size=x4.size()[2:])
+        x = F.interpolate(x, size=x4.size()[2:], mode='bilinear', align_corners=False)
 
         x = torch.cat([x4, x], 1)
         x = self.de_pred4(x)
         x4_out = x
-        x = F.upsample_bilinear(x, size=x3.size()[2:])
+        x = F.interpolate(x, size=x3.size()[2:], mode='bilinear', align_corners=False)
 
         x = torch.cat([x3, x], 1)
         x = self.de_pred3(x)
         x3_out = x
-        x = F.upsample_bilinear(x, size=x2.size()[2:])
+        x = F.interpolate(x, size=x2.size()[2:], mode='bilinear', align_corners=False)
 
         x = torch.cat([x2, x], 1)
         x = self.de_pred2(x)
         x2_out = x
-        x = F.upsample_bilinear(x, size=x1.size()[2:])
+        x = F.interpolate(x, size=x1.size()[2:], mode='bilinear', align_corners=False)
 
         x = torch.cat([x1, x], 1)
         x = self.de_pred1(x)
@@ -172,11 +190,12 @@ class SASNet(nn.Module):
         x2_density = self.density_head2(x2_out)
         x1_density = self.density_head1(x1_out)
         # get patch features for confidence prediction
-        x5_confi = F.adaptive_avg_pool2d(x5_out, output_size=(size[-2] // self.block_size, size[-1] // self.block_size))
-        x4_confi = F.adaptive_avg_pool2d(x4_out, output_size=(size[-2] // self.block_size, size[-1] // self.block_size))
-        x3_confi = F.adaptive_avg_pool2d(x3_out, output_size=(size[-2] // self.block_size, size[-1] // self.block_size))
-        x2_confi = F.adaptive_avg_pool2d(x2_out, output_size=(size[-2] // self.block_size, size[-1] // self.block_size))
-        x1_confi = F.adaptive_avg_pool2d(x1_out, output_size=(size[-2] // self.block_size, size[-1] // self.block_size))
+        output_size = (size[-2] // self.block_size, size[-1] // self.block_size)
+        x5_confi = adaptive_avg_pool2d_mps_compatible(x5_out, output_size)
+        x4_confi = adaptive_avg_pool2d_mps_compatible(x4_out, output_size)
+        x3_confi = adaptive_avg_pool2d_mps_compatible(x3_out, output_size)
+        x2_confi = adaptive_avg_pool2d_mps_compatible(x2_out, output_size)
+        x1_confi = adaptive_avg_pool2d_mps_compatible(x1_out, output_size)
         # confidence prediction
         x5_confi = self.confidence_head5(x5_confi)
         x4_confi = self.confidence_head4(x4_confi)
@@ -184,17 +203,17 @@ class SASNet(nn.Module):
         x2_confi = self.confidence_head2(x2_confi)
         x1_confi = self.confidence_head1(x1_confi)
         # upsample the density prediction to be the same with the input size
-        x5_density = F.upsample_nearest(x5_density, size=x1.size()[2:])
-        x4_density = F.upsample_nearest(x4_density, size=x1.size()[2:])
-        x3_density = F.upsample_nearest(x3_density, size=x1.size()[2:])
-        x2_density = F.upsample_nearest(x2_density, size=x1.size()[2:])
-        x1_density = F.upsample_nearest(x1_density, size=x1.size()[2:])
+        x5_density = F.interpolate(x5_density, size=x1.size()[2:], mode='nearest')
+        x4_density = F.interpolate(x4_density, size=x1.size()[2:], mode='nearest')
+        x3_density = F.interpolate(x3_density, size=x1.size()[2:], mode='nearest')
+        x2_density = F.interpolate(x2_density, size=x1.size()[2:], mode='nearest')
+        x1_density = F.interpolate(x1_density, size=x1.size()[2:], mode='nearest')
         # upsample the confidence prediction to be the same with the input size
-        x5_confi_upsample = F.upsample_nearest(x5_confi, size=x1.size()[2:])
-        x4_confi_upsample = F.upsample_nearest(x4_confi, size=x1.size()[2:])
-        x3_confi_upsample = F.upsample_nearest(x3_confi, size=x1.size()[2:])
-        x2_confi_upsample = F.upsample_nearest(x2_confi, size=x1.size()[2:])
-        x1_confi_upsample = F.upsample_nearest(x1_confi, size=x1.size()[2:])
+        x5_confi_upsample = F.interpolate(x5_confi, size=x1.size()[2:], mode='nearest')
+        x4_confi_upsample = F.interpolate(x4_confi, size=x1.size()[2:], mode='nearest')
+        x3_confi_upsample = F.interpolate(x3_confi, size=x1.size()[2:], mode='nearest')
+        x2_confi_upsample = F.interpolate(x2_confi, size=x1.size()[2:], mode='nearest')
+        x1_confi_upsample = F.interpolate(x1_confi, size=x1.size()[2:], mode='nearest')
 
         # =============================================================================================================
         # soft √

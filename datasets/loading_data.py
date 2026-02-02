@@ -15,6 +15,7 @@
 import torchvision.transforms as standard_transforms
 from torch.utils.data import DataLoader
 from .crowd_dataset import CrowdDataset
+from .roboflow_dataset import RoboflowDataset
 
 # the function to return the dataloader 
 def loading_data(args):
@@ -25,6 +26,30 @@ def loading_data(args):
     ])
     # dcreate  the dataset
     test_set = CrowdDataset(root_path=args.data_path, transform=transform)
+    test_loader = DataLoader(test_set, batch_size=1, num_workers=4, shuffle=False, drop_last=False)
+
+    return test_loader
+
+# the function to return the dataloader for Roboflow dataset
+def loading_roboflow_data(args, split='train'):
+    """
+    Carrega dataset Roboflow e retorna DataLoader.
+    
+    Args:
+        args: Argumentos com data_path
+        split: Split a usar (train, valid, test) - padrão: 'train'
+    
+    Returns:
+        DataLoader para o dataset Roboflow
+    """
+    # the augumentations
+    transform = standard_transforms.Compose([
+        standard_transforms.ToTensor(), 
+        standard_transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225]),
+    ])
+    # create the dataset
+    test_set = RoboflowDataset(root_path=args.data_path, split=split, transform=transform)
     test_loader = DataLoader(test_set, batch_size=1, num_workers=4, shuffle=False, drop_last=False)
 
     return test_loader

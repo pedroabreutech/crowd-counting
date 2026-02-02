@@ -19,11 +19,17 @@ import argparse
 from model import SASNet
 import warnings
 import random
-from datasets.loading_data import loading_data
+from datasets.loading_data import loading_data, loading_roboflow_data
 warnings.filterwarnings('ignore')
 
-# define the GPU id to be used
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# define the device to be used (CUDA, MPS for Mac, or CPU)
+def get_device():
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        return torch.device('mps')
+    else:
+        return torch.device('cpu')
 
 def get_args_parser():
     # define the argparse for the script
@@ -33,12 +39,19 @@ def get_args_parser():
     parser.add_argument('--batch_size', type=int, default=4, help='batch size in training')
     parser.add_argument('--log_para', type=int, default=1000, help='magnify the target density map')
     parser.add_argument('--block_size', type=int, default=32, help='patch size for feature level selection')
+    parser.add_argument('--dataset_type', type=str, default='original', choices=['original', 'roboflow'],
+                       help='type of dataset: original (ShanghaiTech format) or roboflow (COCO format)')
+    parser.add_argument('--split', type=str, default='train', choices=['train', 'valid', 'test'],
+                       help='split to use for Roboflow dataset (only used when dataset_type=roboflow)')
 
     return parser
 
 # get the dataset
 def prepare_dataset(args):
-    return loading_data(args)
+    if args.dataset_type == 'roboflow':
+        return loading_roboflow_data(args, split=args.split)
+    else:
+        return loading_data(args)
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -59,11 +72,17 @@ class AverageMeter(object):
 
 def main(args):
     """the main process of inference"""
+    device = get_device()
+    print(f'Using device: {device}')
+    print(f'Dataset type: {args.dataset_type}')
+    if args.dataset_type == 'roboflow':
+        print(f'Split: {args.split}')
+    
     test_loader = prepare_dataset(args)
 
-    model = SASNet(args=args).cuda()
+    model = SASNet(args=args).to(device)
     # load the trained model
-    model.load_state_dict(torch.load(args.model_path))
+    model.load_state_dict(torch.load(args.model_path, map_location=device))
     print('successfully load model from', args.model_path)
 
     with torch.no_grad():
@@ -71,12 +90,15 @@ def main(args):
 
         maes = AverageMeter()
         mses = AverageMeter()
+        accuracy_meter = AverageMeter()  # Para média de acurácia
+        total_images = 0
+        
         # iterate over the dataset
         for vi, data in enumerate(test_loader, 0):
             img, gt_map = data
 
-            img = img.cuda()
-            gt_map = gt_map.type(torch.FloatTensor).unsqueeze(0).cuda()
+            img = img.to(device)
+            gt_map = gt_map.type(torch.FloatTensor).unsqueeze(0).to(device)
             # get the predicted density map
             pred_map = model(img)
 
@@ -87,15 +109,39 @@ def main(args):
                 pred_cnt = np.sum(pred_map[i_img]) / args.log_para
                 gt_count = np.sum(gt_map[i_img])
 
-                maes.update(abs(gt_count - pred_cnt))
+                # Calcular erro absoluto
+                error = abs(gt_count - pred_cnt)
+                maes.update(error)
                 mses.update((gt_count - pred_cnt) * (gt_count - pred_cnt))
-        # calculation mae and mre
+                
+                # Calcular porcentagem de acerto
+                if gt_count > 0:
+                    # Evitar divisão por zero
+                    accuracy = max(0, 100 - (error / gt_count) * 100)
+                else:
+                    # Se ground truth é 0, considerar 100% se predição também for próxima de 0
+                    if pred_cnt < 0.5:
+                        accuracy = 100.0
+                    else:
+                        accuracy = 0.0
+                
+                accuracy_meter.update(accuracy)
+                total_images += 1
+                
+                # Mostrar resultado de cada imagem
+                print(f'Imagem {total_images}: Real={gt_count:.1f} | Predito={pred_cnt:.1f} | Erro={error:.1f} | Acurácia={accuracy:.2f}%')
+        
+        # calculation mae and mse
         mae = maes.avg
         mse = np.sqrt(mses.avg)
+        avg_accuracy = accuracy_meter.avg
+        
         # print the results
         print('=' * 50)
         print('    ' + '-' * 20)
         print('    [mae %.3f mse %.3f]' % (mae, mse))
+        print('    [Acurácia Média: %.2f%%]' % avg_accuracy)
+        print('    [Total de Imagens: %d]' % total_images)
         print('    ' + '-' * 20)
         print('=' * 50)
 
