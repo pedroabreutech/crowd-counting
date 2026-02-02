@@ -42,9 +42,10 @@ ENV/
 ehthumbs.db
 Thumbs.db
 
-# Datasets (opcional - descomente se não quiser subir os datasets)
-# datas/
-# models/*.pth
+# Datasets e modelos (muito grandes para GitHub)
+# Use Git LFS se precisar versionar esses arquivos
+datas/
+models/*.pth
 
 # Jupyter Notebook
 .ipynb_checkpoints
