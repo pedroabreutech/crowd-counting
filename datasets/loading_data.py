@@ -28,22 +28,3 @@ def loading_data(args):
     test_loader = DataLoader(test_set, batch_size=1, num_workers=4, shuffle=False, drop_last=False)
 
     return test_loader
-
-    """
-    
-    Args:
-        args: Argumentos com data_path
-        split: Split a usar (train, valid, test) - padrão: 'train'
-    
-    Returns:
-    """
-    # the augumentations
-    transform = standard_transforms.Compose([
-        standard_transforms.ToTensor(), 
-        standard_transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225]),
-    ])
-    # create the dataset
-    test_loader = DataLoader(test_set, batch_size=1, num_workers=4, shuffle=False, drop_last=False)
-
-    return test_loader
