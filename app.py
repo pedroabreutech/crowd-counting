@@ -6,11 +6,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from model import SASNet
 import argparse
-import json
 import os
-import tempfile
-from datasets.roboflow_converter import coco_to_center_points, validate_coco_file
-from prepare_dataset import generate_density_map
 
 # Configuração da página
 st.set_page_config(
@@ -79,76 +75,6 @@ def resize_image_if_needed(image, max_size=2048):
     
     return image, original_size, False
 
-# Função para processar imagem com COCO (Roboflow)
-def process_image_with_coco(image, coco_data, model, device, log_para=1000, max_image_size=2048):
-    """Processa imagem usando anotações COCO do Roboflow"""
-    # Redimensionar imagem se necessário
-    image_resized, original_size, was_resized = resize_image_if_needed(image, max_image_size)
-    
-    img_width, img_height = image_resized.size
-    
-    # Procurar imagem no COCO pelo tamanho (match aproximado)
-    matched_image_id = None
-    for img_info in coco_data.get('images', []):
-        if abs(img_info['width'] - img_width) < 50 and abs(img_info['height'] - img_height) < 50:
-            matched_image_id = img_info['id']
-            break
-    
-    # Se não encontrar, usar primeira imagem ou criar pontos vazios
-    if matched_image_id is None and coco_data.get('images'):
-        matched_image_id = coco_data['images'][0]['id']
-    
-    # Encontrar categoria "person"
-    person_category_id = None
-    for cat in coco_data.get('categories', []):
-        if cat['name'].lower() == 'person':
-            person_category_id = cat['id']
-            break
-    
-    # Converter bounding boxes para pontos centrais
-    points = []
-    if matched_image_id and person_category_id:
-        for ann in coco_data.get('annotations', []):
-            if ann['image_id'] == matched_image_id and ann['category_id'] == person_category_id:
-                bbox = ann['bbox']  # [x_min, y_min, width, height]
-                # Ajustar coordenadas se a imagem foi redimensionada
-                if was_resized:
-                    scale_w = img_width / original_size[0]
-                    scale_h = img_height / original_size[1]
-                    bbox = [bbox[0] * scale_w, bbox[1] * scale_h, bbox[2] * scale_w, bbox[3] * scale_h]
-                
-                x_center = bbox[0] + bbox[2] / 2.0
-                y_center = bbox[1] + bbox[3] / 2.0
-                points.append([x_center, y_center])
-    
-    # Gerar mapa de densidade a partir dos pontos
-    image_array = np.array(image_resized)
-    if points:
-        gt_density_map = generate_density_map(
-            shape=image_array.shape,
-            points=np.array(points),
-            f_sz=15,
-            sigma=4
-        )
-        gt_count = len(points)
-    else:
-        # Se não houver pontos, criar mapa vazio
-        h, w = image_array.shape[:2]
-        gt_density_map = np.zeros((h, w))
-        gt_count = 0
-    
-    # Processar com o modelo (usar função base)
-    count, pred_density_map, was_resized_model, original_size_model = process_image_base(
-        image_resized, model, device, log_para
-    )
-    
-    # Ajustar contagem se a imagem foi redimensionada
-    if was_resized:
-        scale_factor = (original_size[0] * original_size[1]) / (img_width * img_height)
-        count = count * scale_factor
-    
-    return count, pred_density_map, was_resized, original_size, gt_count, gt_density_map
-
 # Função base para processar imagem (sem redimensionamento)
 def process_image_base(image, model, device, log_para=1000):
     """Processa uma imagem e retorna a contagem e o mapa de densidade (sem redimensionamento)"""
@@ -204,13 +130,6 @@ def process_image(image, model, device, log_para=1000, max_image_size=2048):
 
 # Sidebar para configurações
 st.sidebar.header("⚙️ Configurações")
-
-# Seleção do tipo de dataset
-dataset_type = st.sidebar.radio(
-    "Tipo de Dataset:",
-    ["Original (ShanghaiTech)", "Roboflow (COCO)"],
-    help="Escolha entre dataset original ou dataset do Roboflow"
-)
 
 # Seleção do modelo
 model_option = st.sidebar.selectbox(
@@ -275,34 +194,6 @@ except Exception as e:
 # Área principal
 st.header("📤 Upload de Imagem")
 
-# Se Roboflow selecionado, mostrar opção de upload COCO
-coco_file = None
-if dataset_type == "Roboflow (COCO)":
-    st.sidebar.markdown("---")
-    st.sidebar.header("📦 Dataset Roboflow")
-    st.sidebar.info("""
-    Para usar dataset Roboflow:
-    1. Exporte seu dataset do Roboflow em formato COCO
-    2. Faça upload do arquivo JSON abaixo
-    3. Faça upload da imagem correspondente
-    """)
-    
-    coco_file = st.sidebar.file_uploader(
-        "Upload arquivo COCO JSON (opcional)",
-        type=['json'],
-        help="Arquivo de anotações no formato COCO do Roboflow"
-    )
-    
-    if coco_file is not None:
-        try:
-            # Validar arquivo COCO
-            coco_content = coco_file.read()
-            coco_data = json.loads(coco_content)
-            st.sidebar.success(f"✅ Arquivo COCO válido!")
-            st.sidebar.info(f"Imagens: {len(coco_data.get('images', []))}\nAnotações: {len(coco_data.get('annotations', []))}")
-        except Exception as e:
-            st.sidebar.error(f"❌ Erro ao validar COCO: {str(e)}")
-
 # Upload de arquivo de imagem
 uploaded_file = st.file_uploader(
     "Faça upload de uma imagem para contagem",
@@ -343,35 +234,9 @@ if uploaded_file is not None:
     # Processar imagem
     with st.spinner("🔄 Processando imagem..."):
         try:
-            # Se Roboflow e COCO disponível, usar processamento com COCO
-            if dataset_type == "Roboflow (COCO)" and coco_file is not None:
-                try:
-                    coco_file.seek(0)  # Resetar ponteiro do arquivo
-                    coco_content = coco_file.read()
-                    coco_data = json.loads(coco_content)
-                    
-                    count, density_map, was_resized, original_size, gt_count_coco, gt_density_map = process_image_with_coco(
-                        image, coco_data, model, device, log_para, max_image_size
-                    )
-                    
-                    # Usar contagem do COCO como ground truth se não foi fornecido manualmente
-                    if not upload_gt:
-                        gt_count = gt_count_coco
-                        upload_gt = True
-                    
-                    # Mostrar informação sobre COCO
-                    st.info(f"📦 Dataset Roboflow: {gt_count_coco} pessoas anotadas no COCO")
-                    
-                except Exception as e:
-                    st.warning(f"⚠️ Erro ao processar com COCO: {str(e)}. Processando sem anotações COCO.")
-                    count, density_map, was_resized, original_size = process_image(
-                        image, model, device, log_para, max_image_size
-                    )
-            else:
-                # Processamento normal (sem COCO)
-                count, density_map, was_resized, original_size = process_image(
-                    image, model, device, log_para, max_image_size
-                )
+            count, density_map, was_resized, original_size = process_image(
+                image, model, device, log_para, max_image_size
+            )
             
             # Avisar se a imagem foi redimensionada
             if was_resized:

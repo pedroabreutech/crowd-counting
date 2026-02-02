@@ -19,7 +19,7 @@ import argparse
 from model import SASNet
 import warnings
 import random
-from datasets.loading_data import loading_data, loading_roboflow_data
+from datasets.loading_data import loading_data
 warnings.filterwarnings('ignore')
 
 # define the device to be used (CUDA, MPS for Mac, or CPU)
@@ -39,19 +39,12 @@ def get_args_parser():
     parser.add_argument('--batch_size', type=int, default=4, help='batch size in training')
     parser.add_argument('--log_para', type=int, default=1000, help='magnify the target density map')
     parser.add_argument('--block_size', type=int, default=32, help='patch size for feature level selection')
-    parser.add_argument('--dataset_type', type=str, default='original', choices=['original', 'roboflow'],
-                       help='type of dataset: original (ShanghaiTech format) or roboflow (COCO format)')
-    parser.add_argument('--split', type=str, default='train', choices=['train', 'valid', 'test'],
-                       help='split to use for Roboflow dataset (only used when dataset_type=roboflow)')
 
     return parser
 
 # get the dataset
 def prepare_dataset(args):
-    if args.dataset_type == 'roboflow':
-        return loading_roboflow_data(args, split=args.split)
-    else:
-        return loading_data(args)
+    return loading_data(args)
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -74,9 +67,6 @@ def main(args):
     """the main process of inference"""
     device = get_device()
     print(f'Using device: {device}')
-    print(f'Dataset type: {args.dataset_type}')
-    if args.dataset_type == 'roboflow':
-        print(f'Split: {args.split}')
     
     test_loader = prepare_dataset(args)
 

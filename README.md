@@ -65,9 +65,6 @@ python3 main.py --data_path ./datas/part_A_final --model_path ./models/SHHA.pth
 
 # ShanghaiTech Part B
 python3 main.py --data_path ./datas/part_B_final --model_path ./models/SHHB.pth 
-
-# Roboflow Dataset
-python3 main.py --data_path ./datas/roboflow_dataset --model_path ./models/SHHA.pth --dataset_type roboflow --split train
 ```
 
 ### Streamlit Web Interface
@@ -89,7 +86,6 @@ See [STREAMLIT_README.md](STREAMLIT_README.md) for detailed instructions on usin
 ### Features
 
 - **Interactive Web Interface**: Upload images and get real-time crowd counting results
-- **Roboflow Dataset Support**: Process datasets exported from Roboflow in COCO format
 - **Multiple Image Processing**: Process multiple images and get total count
 - **Accuracy Metrics**: Calculate MAE, MSE, RMSE, and accuracy percentage
 - **Density Map Visualization**: Visualize predicted density maps
@@ -105,24 +101,6 @@ The overall architecture of the proposed SASNet mainly consists of three compone
 The SASNet achieved state-of-the-art performance on several challenging datasets with various densities.
 
 <img src="imgs/results.png"/>
-
-## Roboflow Dataset Integration
-
-This implementation includes support for Roboflow datasets:
-
-1. **Organize your Roboflow dataset:**
-```bash
-python3 organize_roboflow_dataset.py --source /path/to/roboflow/dataset --target ./datas/roboflow_dataset
-```
-
-2. **Prepare the dataset (convert COCO to density maps):**
-```bash
-python3 prepare_roboflow_dataset.py --data_path ./datas/roboflow_dataset --split train
-python3 prepare_roboflow_dataset.py --data_path ./datas/roboflow_dataset --split valid
-python3 prepare_roboflow_dataset.py --data_path ./datas/roboflow_dataset --split test
-```
-
-3. **Use in Streamlit:** Select "Roboflow (COCO)" option and upload your COCO JSON file.
 
 ## Qualitative results
 The following qualitative results show impressive counting accuracy under various crowd densities.
