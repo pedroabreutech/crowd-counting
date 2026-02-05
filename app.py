@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from model import SASNet
 import argparse
 import os
+import urllib.request
+from pathlib import Path
 
 # Page configuration
 st.set_page_config(
@@ -38,6 +40,40 @@ def get_device():
         return torch.device('mps')
     else:
         return torch.device('cpu')
+
+# Function to download model if it doesn't exist
+def download_model(model_name, model_url, model_path):
+    """Downloads model from URL if it doesn't exist locally"""
+    if os.path.exists(model_path):
+        return True
+    
+    if not model_url:
+        return False
+    
+    try:
+        # Create models directory if it doesn't exist
+        model_dir = os.path.dirname(model_path)
+        if model_dir:
+            os.makedirs(model_dir, exist_ok=True)
+        
+        # Show progress
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        status_text.text(f"Downloading {model_name}... This may take a few minutes.")
+        
+        def show_progress(block_num, block_size, total_size):
+            downloaded = block_num * block_size
+            percent = min(downloaded / total_size * 100, 100) if total_size > 0 else 0
+            progress_bar.progress(int(percent) / 100)
+            status_text.text(f"Downloading {model_name}... {int(percent)}%")
+        
+        urllib.request.urlretrieve(model_url, model_path, reporthook=show_progress)
+        progress_bar.empty()
+        status_text.empty()
+        return True
+    except Exception as e:
+        st.error(f"Error downloading {model_name}: {str(e)}")
+        return False
 
 # Function to load model
 @st.cache_resource
@@ -175,12 +211,42 @@ st.sidebar.info("""
 - The system automatically resizes when necessary
 """)
 
-# Check if model exists
-import os
+# Model URLs (you can update these with actual model download URLs)
+# For now, models need to be manually placed in ./models/ directory
+# Or you can host them on a cloud storage and update these URLs
+MODEL_URLS = {
+    "ShanghaiTech Part A (SHHA)": None,  # Add your model URL here
+    "ShanghaiTech Part B (SHHB)": None   # Add your model URL here
+}
+
+# Check if model exists, try to download if URL is available
 if not os.path.exists(selected_model_path):
-    st.sidebar.error(f"⚠️ Model not found: {selected_model_path}")
-    st.sidebar.info("Make sure the model is in the ./models/ directory")
-    st.stop()
+    model_url = MODEL_URLS.get(model_option)
+    if model_url:
+        # Try to download the model
+        if download_model(model_option, model_url, selected_model_path):
+            st.sidebar.success(f"✅ Model {model_option} downloaded successfully!")
+        else:
+            st.sidebar.error(f"⚠️ Could not download {model_option}")
+            st.sidebar.info("Please ensure the model file is available or update MODEL_URLS in app.py")
+            st.stop()
+    else:
+        # Create models directory if it doesn't exist
+        os.makedirs(os.path.dirname(selected_model_path), exist_ok=True)
+        
+        st.sidebar.warning(f"⚠️ Model not found: {selected_model_path}")
+        st.sidebar.info("""
+        **Model Setup Required:**
+        
+        Please place the model files in the `./models/` directory:
+        - `SHHA.pth` for ShanghaiTech Part A
+        - `SHHB.pth` for ShanghaiTech Part B
+        
+        Download models from: https://drive.google.com/drive/folders/17WobgYjekLTq3QIRW3wPyNByq9NJTmZ9
+        
+        Or update the MODEL_URLS in app.py with direct download links.
+        """)
+        st.stop()
 
 # Load device and model
 device = get_device()
