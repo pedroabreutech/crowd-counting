@@ -1,47 +1,47 @@
-# Interface Streamlit - Contagem de Pessoas
+# Streamlit Interface - Crowd Counting
 
-Interface web para contagem de pessoas em imagens usando o modelo SASNet.
+Web interface for crowd counting in images using the SASNet model.
 
-## Como Executar
+## How to Run
 
-### Opção 1: Usando o script (recomendado)
+### Option 1: Using the script (recommended)
 
 ```bash
 ./run_streamlit.sh
 ```
 
-### Opção 2: Manualmente
+### Option 2: Manually
 
 ```bash
 source venv/bin/activate
 streamlit run app.py
 ```
 
-## Funcionalidades
+## Features
 
-- ✅ Upload de imagens (JPG, JPEG, PNG)
-- ✅ Seleção de modelo (Part A ou Part B)
-- ✅ Visualização do mapa de densidade
-- ✅ Contagem precisa de pessoas
-- ✅ Estatísticas detalhadas
+- ✅ Image upload (JPG, JPEG, PNG)
+- ✅ Model selection (Part A or Part B)
+- ✅ Density map visualization
+- ✅ Accurate crowd counting
+- ✅ Detailed statistics
 
-## Requisitos
+## Requirements
 
-- Ambiente virtual ativado (`venv`)
-- Modelos pré-treinados em `./models/`:
+- Activated virtual environment (`venv`)
+- Pre-trained models in `./models/`:
   - `SHHA.pth` (ShanghaiTech Part A)
   - `SHHB.pth` (ShanghaiTech Part B)
 
-## Uso
+## Usage
 
-1. Execute o comando acima
-2. Abra o navegador na URL exibida (geralmente `http://localhost:8501`)
-3. Selecione o modelo na barra lateral
-4. Faça upload de uma imagem
-5. Visualize os resultados!
+1. Run the command above
+2. Open the browser at the displayed URL (usually `http://localhost:8501`)
+3. Select the model in the sidebar
+4. Upload an image
+5. View the results!
 
-## Notas
+## Notes
 
-- **Part A**: Melhor para multidões muito densas
-- **Part B**: Melhor para multidões esparsas
-- O processamento pode levar alguns segundos dependendo do tamanho da imagem e do dispositivo usado
+- **Part A**: Better for very dense crowds
+- **Part B**: Better for sparse crowds
+- Processing may take a few seconds depending on image size and device used

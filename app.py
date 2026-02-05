@@ -8,20 +8,20 @@ from model import SASNet
 import argparse
 import os
 
-# Configuração da página
+# Page configuration
 st.set_page_config(
-    page_title="SASNet - Contagem de Pessoas",
+    page_title="SASNet - Crowd Counting",
     page_icon="👥",
     layout="wide"
 )
 
-# Título da aplicação
-st.title("👥 SASNet - Sistema de Contagem de Pessoas")
-st.markdown("### Sistema de contagem de pessoas usando deep learning (SASNet - AAAI 2021)")
+# Application title
+st.title("👥 SASNet - Crowd Counting System")
+st.markdown("### Crowd counting system using deep learning (SASNet - AAAI 2021)")
 
-# Função para limpar memória
+# Function to clear memory
 def clear_memory(device):
-    """Limpa a memória do dispositivo"""
+    """Clears device memory"""
     if device.type == 'mps':
         torch.mps.empty_cache()
     elif device.type == 'cuda':
@@ -29,7 +29,7 @@ def clear_memory(device):
     import gc
     gc.collect()
 
-# Função para detectar dispositivo
+# Function to detect device
 @st.cache_resource
 def get_device():
     if torch.cuda.is_available():
@@ -39,11 +39,11 @@ def get_device():
     else:
         return torch.device('cpu')
 
-# Função para carregar o modelo
+# Function to load model
 @st.cache_resource
 def load_model(model_path, device):
-    """Carrega o modelo SASNet"""
-    # Criar args simples para o modelo
+    """Loads the SASNet model"""
+    # Create simple args for the model
     class Args:
         def __init__(self):
             self.block_size = 32
@@ -54,15 +54,15 @@ def load_model(model_path, device):
     model.eval()
     return model
 
-# Função para redimensionar imagem mantendo proporção
+# Function to resize image maintaining aspect ratio
 def resize_image_if_needed(image, max_size=2048):
-    """Redimensiona imagem se for muito grande, mantendo proporção"""
+    """Resizes image if too large, maintaining aspect ratio"""
     width, height = image.size
     original_size = (width, height)
     
-    # Se a imagem for maior que max_size em qualquer dimensão, redimensionar
+    # If image is larger than max_size in any dimension, resize
     if width > max_size or height > max_size:
-        # Calcular novo tamanho mantendo proporção
+        # Calculate new size maintaining aspect ratio
         if width > height:
             new_width = max_size
             new_height = int(height * (max_size / width))
@@ -75,70 +75,70 @@ def resize_image_if_needed(image, max_size=2048):
     
     return image, original_size, False
 
-# Função base para processar imagem (sem redimensionamento)
+# Base function to process image (without resizing)
 def process_image_base(image, model, device, log_para=1000):
-    """Processa uma imagem e retorna a contagem e o mapa de densidade (sem redimensionamento)"""
-    # Transformações (mesmas do código original)
+    """Processes an image and returns count and density map (without resizing)"""
+    # Transformations (same as original code)
     transform = standard_transforms.Compose([
         standard_transforms.ToTensor(),
         standard_transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225]),
     ])
     
-    # Converter PIL para RGB se necessário
+    # Convert PIL to RGB if necessary
     if image.mode != 'RGB':
         image = image.convert('RGB')
     
-    # Aplicar transformações
+    # Apply transformations
     img_tensor = transform(image).unsqueeze(0).to(device)
     
-    # Fazer predição
+    # Make prediction
     with torch.no_grad():
         pred_map = model(img_tensor)
         pred_map = pred_map.data.cpu().numpy()
     
-    # Limpar memória do tensor
+    # Clear tensor memory
     del img_tensor
     clear_memory(device)
     
-    # Calcular contagem
+    # Calculate count
     count = np.sum(pred_map) / log_para
     
-    # Remover dimensões extras do mapa de densidade
+    # Remove extra dimensions from density map
     density_map = pred_map[0, 0]  # [H, W]
     
-    # Limpar pred_map da memória
+    # Clear pred_map from memory
     del pred_map
     
     return count, density_map, False, image.size
 
-# Função para processar imagem
+# Function to process image
 def process_image(image, model, device, log_para=1000, max_image_size=2048):
-    """Processa uma imagem e retorna a contagem e o mapa de densidade"""
-    # Redimensionar se necessário para evitar problemas de memória
+    """Processes an image and returns count and density map"""
+    # Resize if necessary to avoid memory issues
     image_resized, original_size, was_resized = resize_image_if_needed(image, max_image_size)
     
-    # Usar função base
+    # Use base function
     count, density_map, _, _ = process_image_base(image_resized, model, device, log_para)
     
-    # Ajustar contagem se a imagem foi redimensionada
+    # Adjust count if image was resized
     if was_resized:
         scale_factor = (original_size[0] * original_size[1]) / (image_resized.size[0] * image_resized.size[1])
         count = count * scale_factor
     
     return count, density_map, was_resized, original_size
 
-# Sidebar para configurações
-st.sidebar.header("⚙️ Configurações")
+# Sidebar for settings
+st.sidebar.header("⚙️ Settings")
 
-# Seleção do modelo
+# Model selection
 model_option = st.sidebar.selectbox(
-    "Selecione o modelo:",
+    "Select model:",
     ["ShanghaiTech Part A (SHHA)", "ShanghaiTech Part B (SHHB)"],
-    help="Part A é melhor para multidões densas, Part B para multidões esparsas"
+    help="Part A is better for dense crowds, Part B for sparse crowds"
 )
 
-# Mapear seleção para caminho do modelo
+# Map selection to model path
 model_paths = {
     "ShanghaiTech Part A (SHHA)": "./models/SHHA.pth",
     "ShanghaiTech Part B (SHHB)": "./models/SHHB.pth"
@@ -146,110 +146,110 @@ model_paths = {
 
 selected_model_path = model_paths[model_option]
 
-# Parâmetro log_para
+# log_para parameter
 log_para = st.sidebar.slider(
-    "Parâmetro de escala (log_para):",
+    "Scale parameter (log_para):",
     min_value=100,
     max_value=2000,
     value=1000,
     step=100,
-    help="Fator de amplificação do mapa de densidade"
+    help="Density map amplification factor"
 )
 
-# Tamanho máximo da imagem (para evitar problemas de memória)
+# Maximum image size (to avoid memory issues)
 max_image_size = st.sidebar.slider(
-    "Tamanho máximo da imagem (pixels):",
+    "Maximum image size (pixels):",
     min_value=512,
     max_value=4096,
     value=2048,
     step=256,
-    help="Imagens maiores serão redimensionadas automaticamente para evitar problemas de memória"
+    help="Larger images will be automatically resized to avoid memory issues"
 )
 
-# Aviso sobre memória
+# Memory warning
 st.sidebar.markdown("---")
 st.sidebar.info("""
-💡 **Dica de Memória:**
-- Se encontrar erros de memória, reduza o tamanho máximo da imagem
-- Imagens muito grandes (>3000px) podem causar problemas
-- O sistema redimensiona automaticamente quando necessário
+💡 **Memory Tip:**
+- If you encounter memory errors, reduce the maximum image size
+- Very large images (>3000px) may cause problems
+- The system automatically resizes when necessary
 """)
 
-# Verificar se o modelo existe
+# Check if model exists
 import os
 if not os.path.exists(selected_model_path):
-    st.sidebar.error(f"⚠️ Modelo não encontrado: {selected_model_path}")
-    st.sidebar.info("Certifique-se de que o modelo está no diretório ./models/")
+    st.sidebar.error(f"⚠️ Model not found: {selected_model_path}")
+    st.sidebar.info("Make sure the model is in the ./models/ directory")
     st.stop()
 
-# Carregar dispositivo e modelo
+# Load device and model
 device = get_device()
 try:
     model = load_model(selected_model_path, device)
-    st.sidebar.success(f"✅ Modelo carregado! Dispositivo: {device}")
+    st.sidebar.success(f"✅ Model loaded! Device: {device}")
 except Exception as e:
-    st.sidebar.error(f"❌ Erro ao carregar modelo: {str(e)}")
+    st.sidebar.error(f"❌ Error loading model: {str(e)}")
     st.stop()
 
-# Área principal
-st.header("📤 Upload de Imagem")
+# Main area
+st.header("📤 Image Upload")
 
-# Upload de arquivo de imagem
+# Image file upload
 uploaded_file = st.file_uploader(
-    "Faça upload de uma imagem para contagem",
+    "Upload an image for counting",
     type=['jpg', 'jpeg', 'png'],
-    help="Formatos suportados: JPG, JPEG, PNG"
+    help="Supported formats: JPG, JPEG, PNG"
 )
 
-# Upload opcional de ground truth (anotação)
+# Optional ground truth upload (annotation)
 st.sidebar.markdown("---")
-st.sidebar.header("📝 Ground Truth (Opcional)")
+st.sidebar.header("📝 Ground Truth (Optional)")
 upload_gt = st.sidebar.checkbox(
-    "Fornecer contagem real para cálculo de acurácia",
-    help="Marque esta opção se você souber o número real de pessoas na imagem"
+    "Provide actual count for accuracy calculation",
+    help="Check this option if you know the actual number of people in the image"
 )
 
 gt_count = None
 if upload_gt:
     gt_count = st.sidebar.number_input(
-        "Número real de pessoas:",
+        "Actual number of people:",
         min_value=0,
         value=0,
         step=1,
-        help="Digite o número real de pessoas na imagem para calcular a acurácia"
+        help="Enter the actual number of people in the image to calculate accuracy"
     )
 
 if uploaded_file is not None:
-    # Carregar imagem
+    # Load image
     image = Image.open(uploaded_file)
     
-    # Mostrar imagem original
+    # Show original image
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📷 Imagem Original")
+        st.subheader("📷 Original Image")
         st.image(image, use_container_width=True)
-        st.caption(f"Tamanho: {image.size[0]} x {image.size[1]} pixels")
+        st.caption(f"Size: {image.size[0]} x {image.size[1]} pixels")
     
-    # Processar imagem
-    with st.spinner("🔄 Processando imagem..."):
+    # Process image
+    with st.spinner("🔄 Processing image..."):
         try:
             count, density_map, was_resized, original_size = process_image(
                 image, model, device, log_para, max_image_size
             )
             
-            # Avisar se a imagem foi redimensionada
+            # Warn if image was resized
             if was_resized:
                 st.warning(
-                    f"⚠️ Imagem redimensionada de {original_size[0]}x{original_size[1]} "
-                    f"para {image.size[0]}x{image.size[1]} pixels para evitar problemas de memória. "
-                    f"A contagem foi ajustada proporcionalmente."
+                    f"⚠️ Image resized from {original_size[0]}x{original_size[1]} "
+                    f"to {image.size[0]}x{image.size[1]} pixels to avoid memory issues. "
+                    f"Count was adjusted proportionally."
                 )
             
             with col2:
-                st.subheader("🗺️ Mapa de Densidade")
+                st.subheader("🗺️ Density Map")
                 
-                # Criar visualização do mapa de densidade
+                # Create density map visualization
                 fig, ax = plt.subplots(figsize=(10, 10))
                 im = ax.imshow(density_map, cmap='jet', interpolation='nearest')
                 ax.axis('off')
@@ -258,7 +258,7 @@ if uploaded_file is not None:
                 st.pyplot(fig)
                 plt.close(fig)
             
-            # Calcular métricas se houver ground truth
+            # Calculate metrics if ground truth is available
             error = None
             mae = None
             mse = None
@@ -272,76 +272,76 @@ if uploaded_file is not None:
                 error_percent = (error / gt_count) * 100
                 accuracy = max(0, 100 - error_percent)
             
-            # Mostrar resultado
+            # Show result
             st.markdown("---")
-            st.header("📊 Resultado da Contagem")
+            st.header("📊 Counting Result")
             
-            # Criar métricas em colunas
+            # Create metrics in columns
             if upload_gt and gt_count is not None:
-                # Se houver ground truth, mostrar mais métricas
+                # If ground truth is available, show more metrics
                 metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
                 
                 with metric_col1:
                     st.metric(
-                        label="👥 Pessoas Detectadas",
+                        label="👥 People Detected",
                         value=f"{count:.0f}",
-                        help="Número estimado de pessoas na imagem"
+                        help="Estimated number of people in the image"
                     )
                 
                 with metric_col2:
                     st.metric(
-                        label="✅ Contagem Real",
+                        label="✅ Actual Count",
                         value=f"{gt_count:.0f}",
-                        help="Número real de pessoas (ground truth)"
+                        help="Actual number of people (ground truth)"
                     )
                 
                 with metric_col3:
                     delta = count - gt_count if gt_count is not None else None
                     st.metric(
-                        label="📈 Diferença",
+                        label="📈 Difference",
                         value=f"{delta:.0f}" if delta is not None else "N/A",
                         delta=f"{delta:.0f}" if delta is not None else None,
-                        help="Diferença entre predição e valor real"
+                        help="Difference between prediction and actual value"
                     )
                 
                 with metric_col4:
                     st.metric(
-                        label="🎯 Acurácia",
+                        label="🎯 Accuracy",
                         value=f"{accuracy:.2f}%" if accuracy is not None else "N/A",
-                        help="Porcentagem de acerto"
+                        help="Percentage of accuracy"
                     )
             else:
-                # Sem ground truth, mostrar apenas contagem
+                # Without ground truth, show only count
                 metric_col1, metric_col2, metric_col3 = st.columns(3)
                 
                 with metric_col1:
                     st.metric(
-                        label="👥 Pessoas Detectadas",
+                        label="👥 People Detected",
                         value=f"{count:.0f}",
-                        help="Número estimado de pessoas na imagem"
+                        help="Estimated number of people in the image"
                     )
                 
                 with metric_col2:
                     st.metric(
-                        label="📈 Contagem Precisa",
+                        label="📈 Precise Count",
                         value=f"{count:.2f}",
-                        help="Contagem com 2 casas decimais"
+                        help="Count with 2 decimal places"
                     )
                 
                 with metric_col3:
-                    # Calcular densidade (pessoas por pixel)
+                    # Calculate density (people per pixel)
                     total_pixels = density_map.size
-                    density_per_pixel = count / total_pixels * 1000000  # por milhão de pixels
+                    density_per_pixel = count / total_pixels * 1000000  # per million pixels
                     st.metric(
-                        label="📊 Densidade",
+                        label="📊 Density",
                         value=f"{density_per_pixel:.2f}",
-                        help="Pessoas por milhão de pixels"
+                        help="People per million pixels"
                     )
             
-            # Seção de métricas detalhadas (se houver ground truth)
+            # Detailed metrics section (if ground truth is available)
             if upload_gt and gt_count is not None and gt_count > 0:
                 st.markdown("---")
-                st.header("📈 Métricas de Avaliação")
+                st.header("📈 Evaluation Metrics")
                 
                 metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
                 
@@ -349,42 +349,42 @@ if uploaded_file is not None:
                     st.metric(
                         label="MAE (Mean Absolute Error)",
                         value=f"{mae:.2f}",
-                        help="Erro médio absoluto"
+                        help="Mean absolute error"
                     )
                 
                 with metrics_col2:
                     st.metric(
                         label="MSE (Mean Squared Error)",
                         value=f"{mse:.2f}",
-                        help="Erro quadrático médio"
+                        help="Mean squared error"
                     )
                 
                 with metrics_col3:
                     st.metric(
-                        label="Erro Relativo",
+                        label="Relative Error",
                         value=f"{error_percent:.2f}%",
-                        help="Porcentagem de erro em relação ao valor real"
+                        help="Percentage of error relative to actual value"
                     )
                 
                 with metrics_col4:
                     st.metric(
                         label="RMSE (Root Mean Squared Error)",
                         value=f"{np.sqrt(mse):.2f}",
-                        help="Raiz do erro quadrático médio"
+                        help="Root mean squared error"
                     )
                 
-                # Gráfico de comparação
-                st.markdown("### 📊 Comparação Visual")
+                # Comparison chart
+                st.markdown("### 📊 Visual Comparison")
                 fig_comparison, ax_comparison = plt.subplots(figsize=(8, 5))
-                categories = ['Real', 'Predito']
+                categories = ['Actual', 'Predicted']
                 values = [gt_count, count]
                 colors = ['#2ecc71', '#3498db']
                 bars = ax_comparison.bar(categories, values, color=colors, alpha=0.7, edgecolor='black')
-                ax_comparison.set_ylabel('Número de Pessoas', fontsize=12)
-                ax_comparison.set_title('Comparação: Contagem Real vs Predita', fontsize=14, fontweight='bold')
+                ax_comparison.set_ylabel('Number of People', fontsize=12)
+                ax_comparison.set_title('Comparison: Actual vs Predicted Count', fontsize=14, fontweight='bold')
                 ax_comparison.grid(axis='y', alpha=0.3)
                 
-                # Adicionar valores nas barras
+                # Add values on bars
                 for bar, value in zip(bars, values):
                     height = bar.get_height()
                     ax_comparison.text(bar.get_x() + bar.get_width()/2., height,
@@ -395,88 +395,88 @@ if uploaded_file is not None:
                 st.pyplot(fig_comparison)
                 plt.close(fig_comparison)
                 
-                # Indicador de qualidade
-                st.markdown("### 🎯 Indicador de Qualidade")
+                # Quality indicator
+                st.markdown("### 🎯 Quality Indicator")
                 if accuracy >= 95:
-                    quality_status = "🟢 Excelente"
+                    quality_status = "🟢 Excellent"
                     quality_color = "green"
                 elif accuracy >= 90:
-                    quality_status = "🟡 Muito Bom"
+                    quality_status = "🟡 Very Good"
                     quality_color = "orange"
                 elif accuracy >= 80:
-                    quality_status = "🟠 Bom"
+                    quality_status = "🟠 Good"
                     quality_color = "darkorange"
                 elif accuracy >= 70:
-                    quality_status = "🔴 Regular"
+                    quality_status = "🔴 Fair"
                     quality_color = "red"
                 else:
-                    quality_status = "⚫ Precisa Melhorar"
+                    quality_status = "⚫ Needs Improvement"
                     quality_color = "darkred"
                 
                 st.markdown(f"""
                 <div style="background-color: {quality_color}; padding: 15px; border-radius: 10px; text-align: center;">
                     <h3 style="color: white; margin: 0;">{quality_status}</h3>
-                    <p style="color: white; margin: 5px 0 0 0;">Acurácia: {accuracy:.2f}%</p>
+                    <p style="color: white; margin: 5px 0 0 0;">Accuracy: {accuracy:.2f}%</p>
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Informações adicionais
-            with st.expander("ℹ️ Informações Técnicas"):
-                st.write(f"**Dispositivo usado:** {device}")
-                st.write(f"**Modelo:** {model_option}")
-                st.write(f"**Parâmetro log_para:** {log_para}")
-                st.write(f"**Formato do mapa de densidade:** {density_map.shape}")
-                st.write(f"**Valor máximo no mapa:** {np.max(density_map):.4f}")
-                st.write(f"**Valor médio no mapa:** {np.mean(density_map):.4f}")
+            # Additional information
+            with st.expander("ℹ️ Technical Information"):
+                st.write(f"**Device used:** {device}")
+                st.write(f"**Model:** {model_option}")
+                st.write(f"**log_para parameter:** {log_para}")
+                st.write(f"**Density map format:** {density_map.shape}")
+                st.write(f"**Maximum value in map:** {np.max(density_map):.4f}")
+                st.write(f"**Mean value in map:** {np.mean(density_map):.4f}")
                 
                 if upload_gt and gt_count is not None:
                     st.write("---")
-                    st.write("**Métricas de Avaliação:**")
+                    st.write("**Evaluation Metrics:**")
                     if mae is not None:
                         st.write(f"- **MAE:** {mae:.2f}")
                     if mse is not None:
                         st.write(f"- **MSE:** {mse:.2f}")
                         st.write(f"- **RMSE:** {np.sqrt(mse):.2f}")
                     if error_percent is not None:
-                        st.write(f"- **Erro Relativo:** {error_percent:.2f}%")
+                        st.write(f"- **Relative Error:** {error_percent:.2f}%")
                     if accuracy is not None:
-                        st.write(f"- **Acurácia:** {accuracy:.2f}%")
+                        st.write(f"- **Accuracy:** {accuracy:.2f}%")
             
         except Exception as e:
-            st.error(f"❌ Erro ao processar imagem: {str(e)}")
+            st.error(f"❌ Error processing image: {str(e)}")
             st.exception(e)
 
 else:
-    # Instruções quando não há imagem
-    st.info("👆 Faça upload de uma imagem acima para começar a contagem de pessoas.")
+    # Instructions when there is no image
+    st.info("👆 Upload an image above to start crowd counting.")
     
-    # Exemplo de uso
-    with st.expander("📖 Como usar"):
+    # Usage example
+    with st.expander("📖 How to use"):
         st.markdown("""
-        1. **Selecione o modelo** na barra lateral:
-           - **Part A**: Melhor para multidões muito densas
-           - **Part B**: Melhor para multidões esparsas
+        1. **Select the model** in the sidebar:
+           - **Part A**: Better for very dense crowds
+           - **Part B**: Better for sparse crowds
         
-        2. **Faça upload de uma imagem** usando o botão acima
+        2. **Upload an image** using the button above
         
-        3. **Aguarde o processamento** - o sistema irá:
-           - Carregar e processar a imagem
-           - Gerar um mapa de densidade
-           - Calcular o número de pessoas
+        3. **Wait for processing** - the system will:
+           - Load and process the image
+           - Generate a density map
+           - Calculate the number of people
         
-        4. **Visualize os resultados**:
-           - Contagem de pessoas
-           - Mapa de densidade (cores mais quentes = mais pessoas)
-           - Estatísticas adicionais
+        4. **View the results**:
+           - People count
+           - Density map (warmer colors = more people)
+           - Additional statistics
         """)
     
-    # Informações sobre o modelo
+    # Information about the model
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📚 Sobre o SASNet")
+    st.sidebar.markdown("### 📚 About SASNet")
     st.sidebar.info("""
-    SASNet (Scale-Adaptive Selection Network) é um modelo de deep learning 
-    para contagem de pessoas em imagens, apresentado na AAAI 2021.
+    SASNet (Scale-Adaptive Selection Network) is a deep learning model 
+    for crowd counting in images, presented at AAAI 2021.
     
-    O modelo usa seleção adaptativa de escalas para lidar com diferentes 
-    densidades de multidões.
+    The model uses adaptive scale selection to handle different 
+    crowd densities.
     """)

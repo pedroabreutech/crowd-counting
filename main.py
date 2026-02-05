@@ -80,7 +80,7 @@ def main(args):
 
         maes = AverageMeter()
         mses = AverageMeter()
-        accuracy_meter = AverageMeter()  # Para média de acurácia
+        accuracy_meter = AverageMeter()  # For average accuracy
         total_images = 0
         
         # iterate over the dataset
@@ -99,17 +99,17 @@ def main(args):
                 pred_cnt = np.sum(pred_map[i_img]) / args.log_para
                 gt_count = np.sum(gt_map[i_img])
 
-                # Calcular erro absoluto
+                # Calculate absolute error
                 error = abs(gt_count - pred_cnt)
                 maes.update(error)
                 mses.update((gt_count - pred_cnt) * (gt_count - pred_cnt))
                 
-                # Calcular porcentagem de acerto
+                # Calculate accuracy percentage
                 if gt_count > 0:
-                    # Evitar divisão por zero
+                    # Avoid division by zero
                     accuracy = max(0, 100 - (error / gt_count) * 100)
                 else:
-                    # Se ground truth é 0, considerar 100% se predição também for próxima de 0
+                    # If ground truth is 0, consider 100% if prediction is also close to 0
                     if pred_cnt < 0.5:
                         accuracy = 100.0
                     else:
@@ -118,8 +118,8 @@ def main(args):
                 accuracy_meter.update(accuracy)
                 total_images += 1
                 
-                # Mostrar resultado de cada imagem
-                print(f'Imagem {total_images}: Real={gt_count:.1f} | Predito={pred_cnt:.1f} | Erro={error:.1f} | Acurácia={accuracy:.2f}%')
+                # Show result for each image
+                print(f'Image {total_images}: Actual={gt_count:.1f} | Predicted={pred_cnt:.1f} | Error={error:.1f} | Accuracy={accuracy:.2f}%')
         
         # calculation mae and mse
         mae = maes.avg
@@ -130,8 +130,8 @@ def main(args):
         print('=' * 50)
         print('    ' + '-' * 20)
         print('    [mae %.3f mse %.3f]' % (mae, mse))
-        print('    [Acurácia Média: %.2f%%]' % avg_accuracy)
-        print('    [Total de Imagens: %d]' % total_images)
+        print('    [Average Accuracy: %.2f%%]' % avg_accuracy)
+        print('    [Total Images: %d]' % total_images)
         print('    ' + '-' * 20)
         print('=' * 50)
 

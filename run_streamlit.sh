@@ -1,8 +1,8 @@
 #!/bin/bash
-# Script para executar a interface Streamlit
+# Script to run the Streamlit interface
 
-# Ativar ambiente virtual
+# Activate virtual environment
 source venv/bin/activate
 
-# Executar Streamlit
+# Run Streamlit
 streamlit run app.py
