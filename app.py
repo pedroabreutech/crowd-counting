@@ -3,12 +3,18 @@ import torch
 import torchvision.transforms as standard_transforms
 import numpy as np
 from PIL import Image
+import matplotlib
+matplotlib.use('Agg')  # Backend não-GUI para servidores (evita problemas no Streamlit Cloud)
 import matplotlib.pyplot as plt
 from model import SASNet
 import argparse
 import os
 import urllib.request
 from pathlib import Path
+import warnings
+
+# Suprimir avisos do torchvision (não afetam funcionalidade)
+warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
 
 # Page configuration
 st.set_page_config(
@@ -356,8 +362,9 @@ if uploaded_file is not None:
                 ax.axis('off')
                 plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
                 plt.tight_layout()
-                st.pyplot(fig)
+                st.pyplot(fig, clear_figure=True)
                 plt.close(fig)
+                del fig, ax, im
             
             # Calculate metrics if ground truth is available
             error = None
@@ -493,8 +500,9 @@ if uploaded_file is not None:
                                      ha='center', va='bottom', fontsize=12, fontweight='bold')
                 
                 plt.tight_layout()
-                st.pyplot(fig_comparison)
+                st.pyplot(fig_comparison, clear_figure=True)
                 plt.close(fig_comparison)
+                del fig_comparison, ax_comparison, bars
                 
                 # Quality indicator
                 st.markdown("### 🎯 Quality Indicator")
@@ -543,7 +551,23 @@ if uploaded_file is not None:
                     if accuracy is not None:
                         st.write(f"- **Accuracy:** {accuracy:.2f}%")
             
+            # Limpar memória após processamento bem-sucedido
+            clear_memory(device)
+            del density_map
+            import gc
+            gc.collect()
+            plt.close('all')  # Fechar todas as figuras abertas
+            
         except Exception as e:
+            # Limpar memória mesmo em caso de erro
+            try:
+                clear_memory(device)
+                plt.close('all')
+                import gc
+                gc.collect()
+            except:
+                pass
+            
             st.error(f"❌ Error processing image: {str(e)}")
             st.exception(e)
 
