@@ -38,14 +38,12 @@ def clear_memory(device):
     gc.collect()
 
 # Function to detect device
+# Optimized for Streamlit Cloud - force CPU to save memory
 @st.cache_resource
 def get_device():
-    if torch.cuda.is_available():
-        return torch.device('cuda')
-    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-        return torch.device('mps')
-    else:
-        return torch.device('cpu')
+    # Streamlit Cloud doesn't have GPU/MPS, so always use CPU
+    # This also saves memory compared to trying to use CUDA/MPS
+    return torch.device('cpu')
 
 # Function to download model if it doesn't exist
 def download_model(model_name, model_url, model_path):
@@ -84,7 +82,7 @@ def download_model(model_name, model_url, model_path):
 # Function to load model
 @st.cache_resource
 def load_model(model_path, device):
-    """Loads the SASNet model"""
+    """Loads the SASNet model with memory optimization"""
     # Create simple args for the model
     class Args:
         def __init__(self):
@@ -92,8 +90,23 @@ def load_model(model_path, device):
     
     args = Args()
     model = SASNet(args=args).to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    
+    # Load model with memory-efficient settings
+    # weights_only=True is safer and uses less memory
+    try:
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+    except TypeError:
+        # Fallback for older PyTorch versions
+        model.load_state_dict(torch.load(model_path, map_location=device))
+    
     model.eval()
+    
+    # Set model to inference mode for better memory usage
+    model.train(False)
+    
+    # Clear any cached computations
+    torch.set_grad_enabled(False)
+    
     return model
 
 # Function to resize image maintaining aspect ratio
@@ -134,12 +147,13 @@ def process_image_base(image, model, device, log_para=1000):
     # Apply transformations
     img_tensor = transform(image).unsqueeze(0).to(device)
     
-    # Make prediction
+    # Make prediction with memory optimization
     with torch.no_grad():
+        torch.set_grad_enabled(False)  # Ensure no gradients
         pred_map = model(img_tensor)
         pred_map = pred_map.data.cpu().numpy()
     
-    # Clear tensor memory
+    # Clear tensor memory immediately
     del img_tensor
     clear_memory(device)
     
@@ -147,10 +161,12 @@ def process_image_base(image, model, device, log_para=1000):
     count = np.sum(pred_map) / log_para
     
     # Remove extra dimensions from density map
-    density_map = pred_map[0, 0]  # [H, W]
+    density_map = pred_map[0, 0].copy()  # [H, W] - use copy to avoid memory issues
     
     # Clear pred_map from memory
     del pred_map
+    import gc
+    gc.collect()
     
     return count, density_map, False, image.size
 
@@ -199,22 +215,24 @@ log_para = st.sidebar.slider(
 )
 
 # Maximum image size (to avoid memory issues)
+# Reduced default for Streamlit Cloud compatibility (1GB RAM limit)
 max_image_size = st.sidebar.slider(
     "Maximum image size (pixels):",
     min_value=512,
-    max_value=4096,
-    value=2048,
+    max_value=2048,  # Reduced from 4096 for Streamlit Cloud
+    value=1024,      # Reduced default from 2048 to 1024
     step=256,
-    help="Larger images will be automatically resized to avoid memory issues"
+    help="Larger images will be automatically resized to avoid memory issues. Lower values use less memory."
 )
 
 # Memory warning
 st.sidebar.markdown("---")
 st.sidebar.info("""
-💡 **Memory Tip:**
-- If you encounter memory errors, reduce the maximum image size
-- Very large images (>3000px) may cause problems
-- The system automatically resizes when necessary
+💡 **Memory Optimization (Streamlit Cloud):**
+- Default image size reduced to 1024px for better compatibility
+- Images are automatically resized if larger than maximum
+- Using CPU-only PyTorch to save memory
+- If you encounter memory errors, reduce the maximum image size further
 """)
 
 # Model URLs - Try to get from Streamlit Secrets first, then fallback to defaults
@@ -551,15 +569,15 @@ if uploaded_file is not None:
                     if accuracy is not None:
                         st.write(f"- **Accuracy:** {accuracy:.2f}%")
             
-            # Limpar memória após processamento bem-sucedido
+            # Clear memory after successful processing
             clear_memory(device)
             del density_map
             import gc
             gc.collect()
-            plt.close('all')  # Fechar todas as figuras abertas
+            plt.close('all')  # Close all open figures
             
         except Exception as e:
-            # Limpar memória mesmo em caso de erro
+            # Clear memory even in case of error
             try:
                 clear_memory(device)
                 plt.close('all')

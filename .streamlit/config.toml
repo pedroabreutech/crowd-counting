@@ -1,5 +1,11 @@
 [server]
 headless = true
+# Optimizations for Streamlit Cloud
+maxUploadSize = 200  # MB - limit upload size
+maxMessageSize = 200  # MB
+
+[browser]
+gatherUsageStats = false
 
 [theme]
 primaryColor = "#FF6B6B"

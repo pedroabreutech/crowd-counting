@@ -1,6 +1,8 @@
 streamlit>=1.28.0
-torch>=2.5.0
-torchvision>=0.20.0
+# PyTorch CPU-only (lighter for Streamlit Cloud)
+# Note: Streamlit Cloud will install from PyPI, CPU-only versions are available
+torch>=2.5.0,<2.6.0
+torchvision>=0.20.0,<0.21.0
 numpy>=1.24.0,<2.0.0
 Pillow>=10.0.0
 matplotlib>=3.7.0
