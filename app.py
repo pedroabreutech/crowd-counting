@@ -329,7 +329,7 @@ if uploaded_file is not None:
     
     with col1:
         st.subheader("📷 Original Image")
-        st.image(image, use_container_width=True)
+        st.image(image, width='stretch')
         st.caption(f"Size: {image.size[0]} x {image.size[1]} pixels")
     
     # Process image
