@@ -67,19 +67,36 @@ git push origin main
    - **Main file path**: `app.py`
 5. Click "Deploy"
 
-### 4. Configure Secrets (Optional)
+### 4. Configure Secrets (Recommended)
 
-If using external model hosting, add secrets in Streamlit Cloud:
+The app now supports automatic model download via Streamlit Secrets. This is the **recommended method** for deploying models:
 
-1. Go to app settings
-2. Click "Secrets"
-3. Add model URLs:
+1. Go to your app on [share.streamlit.io](https://share.streamlit.io)
+2. Click the **⋮** (three dots) menu → **Settings**
+3. Click **Secrets** in the left sidebar
+4. Add the following configuration with your model URLs:
 
 ```toml
 [model_urls]
 shha_url = "https://your-url.com/SHHA.pth"
 shhb_url = "https://your-url.com/SHHB.pth"
 ```
+
+5. Click **Save**
+
+**Getting Direct Download Links:**
+
+- **Google Drive**: Convert share links to direct download links
+  - Share link: `https://drive.google.com/file/d/FILE_ID/view`
+  - Direct link: `https://drive.google.com/uc?export=download&id=FILE_ID`
+  
+- **Other Services**: Ensure the URLs are publicly accessible and don't require authentication
+
+**Benefits:**
+- Models download automatically on first use
+- No need to commit large files to Git
+- Easy to update URLs without code changes
+- Secure (secrets are encrypted)
 
 ## Troubleshooting
 

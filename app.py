@@ -211,13 +211,23 @@ st.sidebar.info("""
 - The system automatically resizes when necessary
 """)
 
-# Model URLs (you can update these with actual model download URLs)
-# For now, models need to be manually placed in ./models/ directory
-# Or you can host them on a cloud storage and update these URLs
-MODEL_URLS = {
-    "ShanghaiTech Part A (SHHA)": None,  # Add your model URL here
-    "ShanghaiTech Part B (SHHB)": None   # Add your model URL here
-}
+# Model URLs - Try to get from Streamlit Secrets first, then fallback to defaults
+# To configure in Streamlit Cloud: Settings → Secrets → Add:
+# [model_urls]
+# shha_url = "https://your-url.com/SHHA.pth"
+# shhb_url = "https://your-url.com/SHHB.pth"
+try:
+    secrets = st.secrets.get("model_urls", {})
+    MODEL_URLS = {
+        "ShanghaiTech Part A (SHHA)": secrets.get("shha_url") if secrets.get("shha_url") else None,
+        "ShanghaiTech Part B (SHHB)": secrets.get("shhb_url") if secrets.get("shhb_url") else None
+    }
+except (AttributeError, KeyError, FileNotFoundError):
+    # Fallback if secrets are not configured
+    MODEL_URLS = {
+        "ShanghaiTech Part A (SHHA)": None,
+        "ShanghaiTech Part B (SHHB)": None
+    }
 
 # Check if model exists, try to download if URL is available
 if not os.path.exists(selected_model_path):
@@ -235,17 +245,42 @@ if not os.path.exists(selected_model_path):
         os.makedirs(os.path.dirname(selected_model_path), exist_ok=True)
         
         st.sidebar.warning(f"⚠️ Model not found: {selected_model_path}")
-        st.sidebar.info("""
-        **Model Setup Required:**
         
-        Please place the model files in the `./models/` directory:
-        - `SHHA.pth` for ShanghaiTech Part A
-        - `SHHB.pth` for ShanghaiTech Part B
+        # Check if secrets are configured
+        try:
+            secrets = st.secrets.get("model_urls", {})
+            has_secrets = bool(secrets.get("shha_url") or secrets.get("shhb_url"))
+        except:
+            has_secrets = False
         
-        Download models from: https://drive.google.com/drive/folders/17WobgYjekLTq3QIRW3wPyNByq9NJTmZ9
-        
-        Or update the MODEL_URLS in app.py with direct download links.
-        """)
+        if has_secrets:
+            st.sidebar.info("""
+            **Model URLs are configured in Secrets, but download failed.**
+            
+            Please check:
+            - URLs are correct and accessible
+            - Files are publicly accessible (no authentication required)
+            - Network connection is stable
+            """)
+        else:
+            st.sidebar.info("""
+            **Model Setup Required:**
+            
+            **Option 1: Configure in Streamlit Cloud Secrets (Recommended)**
+            1. Go to app settings → Secrets
+            2. Add model URLs:
+            ```toml
+            [model_urls]
+            shha_url = "https://your-url.com/SHHA.pth"
+            shhb_url = "https://your-url.com/SHHB.pth"
+            ```
+            
+            **Option 2: Manual Installation**
+            - Place model files in `./models/` directory:
+              - `SHHA.pth` for ShanghaiTech Part A
+              - `SHHB.pth` for ShanghaiTech Part B
+            - Download from: https://drive.google.com/drive/folders/17WobgYjekLTq3QIRW3wPyNByq9NJTmZ9
+            """)
         st.stop()
 
 # Load device and model
