@@ -253,22 +253,25 @@ except (AttributeError, KeyError, FileNotFoundError):
         "ShanghaiTech Part B (SHHB)": None
     }
 
-# Check if model exists, try to download if URL is available
-if not os.path.exists(selected_model_path):
-    model_url = MODEL_URLS.get(model_option)
+# Function to check and download model if needed
+def ensure_model_available(model_path, model_option, model_urls):
+    """Check if model exists, download if needed"""
+    if os.path.exists(model_path):
+        return True
+    
+    model_url = model_urls.get(model_option)
     if model_url:
         # Try to download the model
-        if download_model(model_option, model_url, selected_model_path):
-            st.sidebar.success(f"✅ Model {model_option} downloaded successfully!")
+        if download_model(model_option, model_url, model_path):
+            return True
         else:
             st.sidebar.error(f"⚠️ Could not download {model_option}")
-            st.sidebar.info("Please ensure the model file is available or update MODEL_URLS in app.py")
-            st.stop()
+            return False
     else:
         # Create models directory if it doesn't exist
-        os.makedirs(os.path.dirname(selected_model_path), exist_ok=True)
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
         
-        st.sidebar.warning(f"⚠️ Model not found: {selected_model_path}")
+        st.sidebar.warning(f"⚠️ Model not found: {model_path}")
         
         # Check if secrets are configured
         try:
@@ -305,15 +308,10 @@ if not os.path.exists(selected_model_path):
               - `SHHB.pth` for ShanghaiTech Part B
             - Download from: https://drive.google.com/drive/folders/17WobgYjekLTq3QIRW3wPyNByq9NJTmZ9
             """)
-        st.stop()
+        return False
 
-# Load device and model
-device = get_device()
-try:
-    model = load_model(selected_model_path, device)
-    st.sidebar.success(f"✅ Model loaded! Device: {device}")
-except Exception as e:
-    st.sidebar.error(f"❌ Error loading model: {str(e)}")
+# Check if model is available (but don't load it yet)
+if not ensure_model_available(selected_model_path, model_option, MODEL_URLS):
     st.stop()
 
 # Main area
@@ -345,6 +343,19 @@ if upload_gt:
     )
 
 if uploaded_file is not None:
+    # Load device and model only when needed (lazy loading)
+    # This follows the same pattern as the reference project
+    device = get_device()
+    
+    # Load model with error handling
+    try:
+        model = load_model(selected_model_path, device)
+        st.sidebar.success(f"✅ Model loaded! Device: {device}")
+    except Exception as e:
+        st.sidebar.error(f"❌ Error loading model: {str(e)}")
+        st.error("Failed to load model. Please check the model file and try again.")
+        st.stop()
+    
     # Load image
     image = Image.open(uploaded_file)
     
